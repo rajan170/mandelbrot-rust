@@ -26,6 +26,15 @@ fn escape_time(c: Complex<f64>, limit: usize) -> Option<usize> {
 }
 
 use std::str::FromStr;
+/// Parse the string `s` as a coordinate pair, like `"400x600"` or `"1.0,0.5"`.
+///
+/// Specifically, `s` should have the form <left><sep><right>, where <sep> is
+/// the character given by the `separator` argument, and <left> and <right> are
+/// both strings that can be parsed by `T::from_str`. `separator` must be an
+/// ASCII character.
+///
+/// If `s` has the proper form, return `Some<(x, y)>`. If it doesn't parse
+/// correctly, return `None`.
 fn parse_pair<T: FromStr>(s: &str, separator: char) -> Option<(T, T)> {
     match s.find(separator) {
         None => None,
@@ -64,6 +73,41 @@ fn test_parse_complex() {
         })
     );
     assert_eq!(parse_complex(",-0.32"), None);
+}
+
+fn pixel_to_point(
+    bounds: (usize, usize),
+    pixel: (usize, usize),
+    upper_left: Complex<f64>,
+    lower_right: Complex<f64>,
+) -> Complex<f64> {
+    let (width, height) = (
+        lower_right.re - upper_left.re,
+        upper_left.im - lower_right.im,
+    );
+
+    Complex {
+        re: upper_left.re + pixel.0 as f64 * width / bounds.0 as f64,
+        im: upper_left.im - pixel.1 as f64 * height / bounds.1 as f64,
+        // Why subtraction here? pixel.1 increases as we go down,
+        // but the imaginary component increases as we go up.
+    }
+}
+
+#[test]
+fn test_pixel_to_point() {
+    assert_eq!(
+        pixel_to_point(
+            (100, 200),
+            (25, 175),
+            Complex { re: -1.0, im: 1.0 },
+            Complex { re: 1.0, im: -1.0 }
+        ),
+        Complex {
+            re: -0.6,
+            im: -0.75
+        }
+    );
 }
 
 fn main() {}
