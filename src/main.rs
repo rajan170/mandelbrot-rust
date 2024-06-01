@@ -1,11 +1,13 @@
-fn complex_square_add_loop(c: Complex<f64>) {
-    let mut z = Complex { re: 0.0, im: 0.0 };
-    loop {
-        z = z * z + c;
-    }
-}
+// fn complex_square_add_loop(c: Complex<f64>) {
+//     let mut z = Complex { re: 0.0, im: 0.0 };
+//     loop {
+//         z = z * z + c;
+//     }
+// }
 
 use num::Complex;
+use rayon::prelude::*;
+
 /// Try to determine if `c` is in the Mandelbrot set, using at most `limit`
 /// iterations to decide.
 ///
@@ -160,4 +162,38 @@ fn write_image_(
     Ok(())
 }
 
-fn main() {}
+use std::env;
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() != 5 {
+        eprintln!("Usage: {} FILE PIXELS UPPERLEFT LOWERRIGHT", args[0]);
+        eprintln!(
+            "Example: {} mandel.png 1000x750 -1.20,0.35 -1,0.20",
+            args[0]
+        );
+        std::process::exit(1);
+    }
+
+    let bounds = parse_pair(&args[2], 'x').expect("error parsing image dimensions");
+    let upper_left = parse_complex(&args[3]).expect("error parsing upper left corner point");
+    let lower_right = parse_complex(&args[4]).expect("error parsing lower right corner point");
+
+    let mut pixels = vec![0; bounds.0 * bounds.1];
+    {
+        let mut bands: Vec<(usize, &mut [u8])> = Vec::with_capacity(bounds.1);
+        for (i, band) in pixels.chunks_mut(bounds.0).enumerate() {
+            bands.push((i, band));
+        }
+
+        bands.into_par_iter().for_each(|(i, band)| {
+            let top = i;
+            let band_bounds = (bounds.0, 1);
+            let band_upper_left = pixel_to_point(bounds, (0, top), upper_left, lower_right);
+            let band_lower_right =
+                pixel_to_point(bounds, (bounds.0, top + 1), upper_left, lower_right);
+            render(band, band_bounds, band_upper_left, band_lower_right);
+        });
+    }
+    write_image_(&args[1], &pixels, bounds).expect("error writing PNG file")
+}
